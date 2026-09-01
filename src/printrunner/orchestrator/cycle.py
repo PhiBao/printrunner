@@ -13,6 +13,8 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timedelta
 
+import httpx
+
 from ..config import Settings
 from ..domain import (
     CandidateBrief,
@@ -37,6 +39,15 @@ from ..positions.exits import build_exit_plan, evaluate_exit
 from ..reconcile.reconciler import reconcile
 from ..llm.team import LLMTeam
 from ..util import today_et
+
+
+def _notify(settings, text: str) -> None:
+    if not settings.discord_webhook:
+        return
+    try:
+        httpx.post(settings.discord_webhook, json={"content": text[:1900]}, timeout=5.0)
+    except Exception:
+        pass
 
 
 def _snapshot_for_event(
@@ -161,14 +172,17 @@ def run_cycle(settings: Settings, cycle_id: str | None = None) -> dict:
     halt = state.halt()
     if halt.tripped:
         summary["halt"] = halt.reason
+        _notify(settings, f"HALT {halt.reason}")
 
     # 3b breaker (2x costs) — post's breaker agent
     try:
         from ..reconcile.breaker import run_breaker
 
-        run_breaker(settings, state, journal, today, cycle_id, md if "md" in locals() else None)
-    except Exception:
-        pass
+        kills = run_breaker(settings, state, journal, today, cycle_id, md)
+        if kills:
+            _notify(settings, f"BREAKER {kills} kills")
+    except Exception as exc:
+        journal.append("ERROR", {"phase": "breaker", "error": str(exc)[:300]}, cycle_id)
 
     # 3 manage exits (fresh quotes, force=True)
     try:
@@ -414,14 +428,14 @@ def run_cycle(settings: Settings, cycle_id: str | None = None) -> dict:
         from ..reconcile.autopsy import run_autopsy
 
         run_autopsy(state, journal, today, cycle_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        journal.append("ERROR", {"phase": "autopsy", "error": str(exc)[:300]}, cycle_id)
 
     # 8b reviewer (end of cycle)
     try:
         llm.reviewer_bans(today, cycle_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        journal.append("ERROR", {"phase": "reviewer", "error": str(exc)[:300]}, cycle_id)
 
     journal.append("CYCLE_SUMMARY", summary, cycle_id)
     _maybe_build_dashboard(settings)

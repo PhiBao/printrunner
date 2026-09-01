@@ -278,6 +278,10 @@ class AlpacaMarketData:
             token = getattr(resp, "next_page_token", None)
             if not token:
                 break
+        # BRK.B and similar dot-names: Alpaca may require dash form
+        if not contracts and "." in symbol:
+            alt = symbol.replace(".", "-")
+            return self.option_chain(alt, expiry_lo, expiry_hi)
         self._chain_cache[cache_key] = (time.monotonic(), contracts)
         return contracts
 
