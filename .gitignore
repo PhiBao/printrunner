@@ -1,0 +1,14 @@
+# secrets / env
+.env
+*.key
+
+# data & artifacts (data/ is runtime state; dashboard html is published to Pages)
+data/
+.pytest_cache/
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+.DS_Store
