@@ -104,10 +104,10 @@ def evaluate_gates(
     if dte_today < risk.min_expiry_days_after_exit:
         failures.append((GateCode.G5, f"DTE {dte_today} < min {risk.min_expiry_days_after_exit}"))
 
-    # --- G6 liquidity
+    # --- G6 liquidity (OI check skipped on free Indicative feed where OI==0)
     for leg in structure.legs:
         q = leg.quote_at_selection
-        if q.open_interest < risk.oi_min:
+        if q.open_interest and q.open_interest < risk.oi_min:
             failures.append((GateCode.G6, f"low OI {q.option_symbol} {q.open_interest} < {risk.oi_min}"))
             break
         spread_pct = (q.ask - q.bid) / q.mid if q.mid else 1.0

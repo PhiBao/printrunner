@@ -267,11 +267,18 @@ class AlpacaMarketData:
                     exp = getattr(c, "expiration_date", None)
                     if hasattr(exp, "date"):
                         exp = exp.date()
+                    raw_type = getattr(c, "type", "call")
+                    opt_type = raw_type.value.lower() if hasattr(raw_type, "value") else str(raw_type).lower()
+                    # normalize: handles "call"/"put" vs "ContractType.CALL"
+                    if "call" in opt_type:
+                        opt_type = "call"
+                    elif "put" in opt_type:
+                        opt_type = "put"
                     contracts.append(Contract(
                         symbol=str(c.symbol),
                         strike=float(c.strike_price),
                         expiry=exp,
-                        option_type=str(getattr(c, "type", "call")).lower(),
+                        option_type=opt_type,
                     ))
                 except Exception:
                     continue

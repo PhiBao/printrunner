@@ -139,6 +139,8 @@ class Settings:
         key = env.get("ALPACA_API_KEY_ID", "")
         secret = env.get("ALPACA_SECRET_KEY", "")
         base = env.get("ALPACA_BASE_URL", PAPER_BASE).rstrip("/")
+        if base.endswith("/v2"):
+            base = base[:-3].rstrip("/")
 
         # P7: paper or nothing.
         if "paper" not in base and LIVE_MARKER in base:
