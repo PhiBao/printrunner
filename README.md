@@ -6,6 +6,12 @@
 
 This is the build for the [Alpaca AI Trading Agents Hackathon](https://lablab.ai/event/alpaca-ai-trading-agents-hackathon) — track **Options Alpha Agents**. It implements the full Earnings Season Agent architecture sketched before build.
 
+## Demo
+
+- **Video (2:28, edge-tts + ffmpeg + PIL)**: [`docs/video/PrintRunner.mp4`](docs/video/PrintRunner.mp4) — also hosted at `https://phibao.github.io/printrunner/video/PrintRunner.mp4`
+- **Slides (10, reportlab, punchy)**: [`docs/PrintRunner.pdf`](docs/PrintRunner.pdf) — `https://phibao.github.io/printrunner/PrintRunner.pdf`
+- **Live dashboard**: `https://phibao.github.io/printrunner/` (rebuilt every cycle via Actions)
+
 ---
 
 ## 1 · Design laws
@@ -127,7 +133,7 @@ pr dashboard           # rebuild static dashboard
 
 ### Env
 
-See `.env.example`. Trading credentials **must** point at `https://paper-api.alpaca.markets`; any live host is refused at `Settings.load` (P7, tested against `ALPACA_BASE_URL` containing `api.alpaca.markets` without `paper`).
+See `.env.example`. Trading credentials **must** point at `https://paper-api.alpaca.markets` (Alpaca docs show `https://paper-api.alpaca.markets/v2` as the REST prefix — `Settings.load` at `src/printrunner/config.py:141` strips a trailing `/v2` so both forms work; your paper key/secret are for paper, and double `/v2/v2` is normalized). Any live host is refused at `Settings.load` (P7).
 
 LLM providers are tried in order Groq → AIML → OpenAI-compatible custom endpoint. Missing keys are skipped; with no provider the agent is fail-closed for *entries* (exits still run). Set `ALLOW_NO_LLM_ENTRIES=1` only for dry runs.
 
