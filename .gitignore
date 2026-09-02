@@ -22,3 +22,5 @@ presentation/*.pdf
 !presentation/PrintRunner.mp4
 !presentation/PrintRunner.pdf
 worker/.wrangler/
+.vercel
+.env*
