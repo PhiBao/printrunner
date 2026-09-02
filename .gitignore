@@ -12,3 +12,13 @@ __pycache__/
 build/
 dist/
 .DS_Store
+# presentation intermediates (generated, large)
+presentation/audio/
+presentation/clips/
+presentation/frames/
+presentation/concat.txt
+presentation/*.mp4
+presentation/*.pdf
+!presentation/PrintRunner.mp4
+!presentation/PrintRunner.pdf
+worker/.wrangler/

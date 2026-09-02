@@ -13,6 +13,12 @@ from typing import Any
 
 from ..domain import stable_hash, utcnow
 
+try:
+    from ..supabase import push_journal as _push_supabase
+except Exception:
+    def _push_supabase(entry):  # type: ignore
+        pass
+
 ENTRY_TYPES = {
     "BOOT", "CALENDAR", "RESCHEDULE", "SCREEN_PASS", "SCREEN_FAIL",
     "GATE_PASS", "GATE_FAIL", "LLM_CALL", "DECISION", "DECISION_REJECTED",
@@ -79,6 +85,10 @@ class Journal:
             fh.flush()
         self._last_hash = rec["hash"]
         self._seq += 1
+        try:
+            _push_supabase(rec)
+        except Exception:
+            pass
         return rec
 
     def verify(self) -> bool:
