@@ -42,9 +42,10 @@ jobs:
           ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
-          # Alpaca CLI auth (env bundle, paper default — ALPACA_LIVE_TRADE unset)
+          # Alpaca CLI auth (env bundle, paper default — ALPACA_LIVE_TRADE unset).
+          # ALPACA_SECRET_KEY is already set above; only the key-id needs a
+          # second name for the CLI's ALPACA_API_KEY convention.
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_ID }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           AIML_API_KEY: ${{ secrets.AIML_API_KEY }}
