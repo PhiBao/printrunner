@@ -8,9 +8,9 @@ This is the build for the [Alpaca AI Trading Agents Hackathon](https://lablab.ai
 
 ## Demo
 
-- **Video (2:28, edge-tts + ffmpeg + PIL)**: [`docs/video/PrintRunner.mp4`](docs/video/PrintRunner.mp4) — also hosted at `https://phibao.github.io/printrunner/video/PrintRunner.mp4`
-- **Slides (10, reportlab, punchy)**: [`docs/PrintRunner.pdf`](docs/PrintRunner.pdf) — `https://phibao.github.io/printrunner/PrintRunner.pdf`
-- **Live dashboard**: `https://phibao.github.io/printrunner/` (rebuilt every cycle via Actions)
+- **Video (2:28, edge-tts + ffmpeg + PIL)**: [`docs/video/PrintRunner.mp4`](docs/video/PrintRunner.mp4) — also hosted at `https://printrunner.vercel.app/video/PrintRunner.mp4`
+- **Slides (10, reportlab, punchy)**: [`docs/PrintRunner.pdf`](docs/PrintRunner.pdf) — `https://printrunner.vercel.app/PrintRunner.pdf`
+- **Live dashboard**: `https://printrunner.vercel.app/` (fetches Supabase at runtime — no rebuild or commit per run; keys are injected from `.env` at build time and never committed)
 
 ---
 
@@ -113,7 +113,7 @@ uv sync
 cp .env.example .env   # fill ALPACA_API_KEY_ID, ALPACA_SECRET_KEY (paper), FINNHUB_API_KEY, GROQ_API_KEY, ...
 uv run pr status       # verify halt/journal/db
 uv run pr cycle        # one full cycle (reconcile → exits → calendar → screen → LLM → gates → execute)
-uv run pr dashboard    # rebuild docs/index.html
+uv run pr dashboard    # rebuild docs/index.html (gitignored; needs SUPABASE_* in .env for live fetch)
 uv run pr journal -n 30
 uv run pr journal --verify
 ```
@@ -141,15 +141,13 @@ LLM providers are tried in order Groq → AIML → OpenAI-compatible custom endp
 
 ## 5 · Deployment
 
-`.github/workflows/cycle.yml` runs `pr cycle` every 20 minutes 13–20 UTC on weekdays (US market hours), with `concurrency: group: printrunner-cycle` so cycles never overlap. On every run (even on failure) it rebuilds `docs/index.html` and pushes it — enable **GitHub Pages → Deploy from branch → /docs** to get a live paper dashboard.
+No commits per run. The loop is **Cloudflare Worker → Actions → Supabase → Vercel**:
 
-Required Actions secrets: `ALPACA_API_KEY_ID`, `ALPACA_SECRET_KEY`, `ALPACA_BASE_URL` (paper), `FINNHUB_API_KEY`, `GROQ_API_KEY` (and optionally `AIML_API_KEY`, `OPENAI_COMPAT_*`, `DISCORD_WEBHOOK_URL`). `workflow_dispatch` is enabled for manual runs.
+- A Cloudflare Worker (`worker/`, cron `*/20 13-20 * * 1-5` weekdays) dispatches `.github/workflows/cycle.yml` (`workflow_dispatch` only) via the GitHub API. Every `Journal.append` is mirrored to Supabase (`src/printrunner/supabase/`, fail-open).
+- The dashboard (`src/printrunner/dashboard/build.py`) is a static shell that fetches `journal`/`equity` from Supabase **in the browser at runtime** — no rebuild or redeploy per run. Build locally with `uv run pr dashboard` (reads `SUPABASE_URL`/`SUPABASE_ANON_KEY` from `.env`), then publish with `vercel deploy` from `docs/`. `docs/index.html` is gitignored precisely because the built file carries the public anon key; **never `git add` it**.
+- Live: `https://printrunner.vercel.app/`
 
-Local cron alternative:
-
-```cron
-*/20 13-20 * * 1-5  cd /path/to/alpaca && uv run pr cycle >> data/cycle.log 2>&1
-```
+Required Actions secrets: `ALPACA_API_KEY_ID`, `ALPACA_SECRET_KEY`, `ALPACA_BASE_URL` (paper), `FINNHUB_API_KEY`, `GROQ_API_KEY` (and optionally `AIML_API_KEY`, `OPENAI_COMPAT_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_ANON_KEY`, `DISCORD_WEBHOOK_URL`).
 
 ---
 

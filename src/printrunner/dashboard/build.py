@@ -15,8 +15,21 @@ from ..journal.journal import Journal
 from ..state.state import StateDB
 from ..util import today_et
 
-SUPABASE_URL = "https://langxpszhfodfcdmxxru.supabase.co"
-SUPABASE_ANON = "REDACTED-SUPABASE-KEY"
+import os
+
+
+def _supabase_public_config() -> tuple[str, str]:
+    """Dashboard keys come from the environment, never from git.
+
+    `uv run pr dashboard` reads them from `.env`; the built
+    `docs/index.html` is gitignored — publish with `vercel deploy`
+    (uploads the file, never commits it). Empty values fall back to
+    the local SQLite/journal snapshot rendered into the page.
+    """
+    return (
+        os.getenv("SUPABASE_URL", ""),
+        os.getenv("SUPABASE_ANON_KEY", ""),
+    )
 
 _HTML = """<!doctype html>
 <meta charset="utf-8">
@@ -139,6 +152,7 @@ def build_dashboard(settings: Settings) -> Path:
     tail = journal.tail(30)
     journal_tail = "\n".join(json.dumps(r, default=str) for r in tail) if tail else "(empty)"
     equity = "\n".join(f"{d}: {v:.2f}" for d, v in state.equity_history()[-30:]) or "(no data yet)"
+    supabase_url, supabase_anon = _supabase_public_config()
     html = _HTML.format(
         today=today.isoformat(), halt=halt_txt, halt_cls=halt_cls,
         entries=state.entries_today(today), n_open=len(positions),
@@ -146,7 +160,7 @@ def build_dashboard(settings: Settings) -> Path:
         bans_table=bans_table, journal_tail=journal_tail, equity=equity,
         n_hyp=n_hyp, n_thesis=n_thesis, n_breaker=n_breaker,
         hyp_table=hyp_table, theses_table=theses_table, breaker_tail=breaker_tail,
-        supabase_url=SUPABASE_URL, supabase_anon=SUPABASE_ANON,
+        supabase_url=supabase_url, supabase_anon=supabase_anon,
     )
     out.write_text(html)
     return out

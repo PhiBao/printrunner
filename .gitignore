@@ -2,8 +2,11 @@
 .env
 *.key
 
-# data & artifacts (data/ is runtime state; dashboard html is published to Pages)
+# data & artifacts (data/ is runtime state, lives in Supabase for prod)
 data/
+# built dashboard contains the Supabase anon key at deploy time — never commit;
+# publish with `vercel deploy` (uploads the file, does not use git)
+docs/index.html
 .pytest_cache/
 __pycache__/
 *.pyc
