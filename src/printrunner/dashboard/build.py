@@ -77,7 +77,7 @@ async function fetchSupabase(table, query) {{
   const live = document.getElementById("live-status");
   try {{
     const [journal, equity] = await Promise.all([
-      fetchSupabase("journal", "select=*&order=seq.desc&limit=30"),
+      fetchSupabase("journal", "select=*&order=id.desc&limit=30"),
       fetchSupabase("equity", "select=*&order=day.desc&limit=30")
     ]);
     document.getElementById("journal-live").textContent = journal.map(r => JSON.stringify(r)).join("\\n") || "(empty)";
