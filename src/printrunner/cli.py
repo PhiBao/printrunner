@@ -104,6 +104,31 @@ def cmd_doctor(args) -> int:
     return 0 if info.get("account_ok") else 1
 
 
+def cmd_override(args) -> int:
+    """Safety-floored operator waiver entry (only G9/G10 waivable)."""
+    from datetime import date as _date
+    from .domain import StructureKind
+    from .execution.waiver import parse_waived, run_waiver
+    try:
+        settings = Settings.load()
+        kind = StructureKind(args.structure)
+        waived = parse_waived(args.waive)
+        event_date = _date.fromisoformat(args.event_date)
+    except Exception as exc:
+        print(f"bad args: {exc}", file=sys.stderr)
+        return 2
+    if args.confirm != "OVERRIDE":
+        print("refusing: pass --confirm OVERRIDE to direct a waived entry", file=sys.stderr)
+        return 2
+    if not args.reason or len(args.reason.strip()) < 20:
+        print("refusing: --reason must state the operator thesis (>=20 chars)", file=sys.stderr)
+        return 2
+    out = run_waiver(settings, args.symbol.upper(), event_date, kind, waived,
+                     args.conviction, args.reason.strip())
+    print(out)
+    return 1 if out.get("refused") else 0
+
+
 def cmd_cycle(args) -> int:
     settings = Settings.load()
     from .orchestrator.cycle import run_cycle
@@ -127,7 +152,17 @@ def main() -> None:
     sub.add_parser("dashboard")
     sub.add_parser("cycle")
     sub.add_parser("doctor")
+    po = sub.add_parser("override")
+    po.add_argument("--symbol", required=True)
+    po.add_argument("--event-date", required=True)
+    po.add_argument("--structure", required=True,
+                    choices=["call_debit_vertical", "put_debit_vertical", "iron_condor"])
+    po.add_argument("--waive", default="G9,G10")
+    po.add_argument("--conviction", type=int, default=5)
+    po.add_argument("--reason", default="")
+    po.add_argument("--confirm", default="")
     args = p.parse_args()
     code = {"status": cmd_status, "journal": cmd_journal, "resume": cmd_resume,
-            "dashboard": cmd_dashboard, "cycle": cmd_cycle, "doctor": cmd_doctor}[args.cmd](args)
+            "dashboard": cmd_dashboard, "cycle": cmd_cycle, "doctor": cmd_doctor,
+            "override": cmd_override}[args.cmd](args)
     sys.exit(code)

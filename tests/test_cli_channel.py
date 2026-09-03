@@ -97,3 +97,20 @@ def test_calendar_confirm_increments_on_repeat_observation():
         # date change resets and reports reschedule
         r3 = st.upsert_calendar("ADBE", date(2026, 9, 11), "AMC", "finnhub")
         assert r3 == (date(2026, 9, 10), 0)
+
+
+def test_waiver_parse_and_floor():
+    from printrunner.domain import GateCode
+    from printrunner.execution.waiver import WAIVABLE, parse_waived
+    assert WAIVABLE == {GateCode.G9, GateCode.G10}
+    assert parse_waived("G9,G10") == {GateCode.G9, GateCode.G10}
+    assert parse_waived("g9_runup_favorable") == {GateCode.G9}
+    assert parse_waived("") == set()
+    try:
+        parse_waived("G6")
+        print("G6 parsed (allowed by parser, blocked by floor)")
+    except ValueError:
+        raise AssertionError("G6 is a known code and must parse")
+    import pytest as _pt
+    with _pt.raises(ValueError):
+        parse_waived("G99")
