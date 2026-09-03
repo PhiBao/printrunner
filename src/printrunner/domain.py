@@ -32,7 +32,7 @@ class EarningsEvent(BaseModel):
     symbol: str
     event_date: date  # announcement date ("D-day")
     timing: Literal["BMO", "AMC", "UNSPECIFIED"] = "UNSPECIFIED"
-    source: Literal["finnhub", "yfinance"]
+    source: Literal["finnhub", "yfinance", "operator"]  # operator = human-directed waiver entry
     captured_at: datetime
     rescheduled_from: date | None = None  # set when we saw a different date earlier
 
