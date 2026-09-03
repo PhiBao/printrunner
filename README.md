@@ -2,7 +2,7 @@
 
 *An autonomous, auditable agent that trades defined-risk options structures around earnings announcements on **Alpaca paper** — built on the "LLM least-trusted" pattern: the model analyzes and picks from a deterministic shortlist, but every price, structure, size, and exit is computed and enforced by code it cannot override.*
 
-[![Tests](https://img.shields.io/badge/tests-14%2F14-brightgreen)](#testing) [![Paper only](https://img.shields.io/badge/trading-paper_only-blue)](#safety) [![License](https://img.shields.io/badge/license-MIT-green)](#license)
+[![Tests](https://img.shields.io/badge/tests-21%2F21-brightgreen)](#testing) [![Paper only](https://img.shields.io/badge/trading-paper_only-blue)](#safety) [![License](https://img.shields.io/badge/license-MIT-green)](#license)
 
 This is the build for the [Alpaca AI Trading Agents Hackathon](https://lablab.ai/event/alpaca-ai-trading-agents-hackathon) — track **Options Alpha Agents**. It implements the full Earnings Season Agent architecture sketched before build.
 
@@ -128,6 +128,9 @@ pr journal [-n N]      # tail journal
 pr journal --verify    # hash-chain verify
 pr resume --confirm ACK# clear a latched HALT (manual only)
 pr dashboard           # rebuild static dashboard
+pr override --symbol ADBE --event-date 2026-09-10 --structure call_debit_vertical --waive G9,G10 --conviction 5 --reason "..." --confirm OVERRIDE
+                       # safety-floored operator waiver: only edge gates G9/G10
+                       # waivable (G1-G8 failures refuse); journaled as OPERATOR_OVERRIDE
 ```
 
 `pr cycle` is idempotent — rerunning the same cycle is a no-op due to deterministic `client_order_id`s.
@@ -163,6 +166,15 @@ Alpaca infrastructure: Trading API via `alpaca-py`/REST (market data, chain, mle
 - There is no options backtest in this repo: free historical chains for our window don't exist. Results are **forward paper only**. One contest week proves nothing about profitability. The claim is *auditable process around a documented event edge*.
 
 Short legs are always covered by a same-expiry long (GCD ratios = 1, every short paired). No naked shorts are representable.
+
+### Operator waiver (Sep 3, 2026 — disclosed, not hidden)
+
+During the contest the only in-window setup (ADBE → Sep 10) printed a regime the two coded families do not cover: EM-rich (MoveRatio 1.31) + negative 5d drift (−1.6%) + wide put spreads on the free indicative feed. The autonomous path correctly declined (LLM `DECLINE_ALL`, gates G6/G9/G10 fail — all journaled). With ~1.5 sessions left, the operator directed **one** entry through the waiver channel (`src/printrunner/execution/waiver.py`, `pr override`):
+
+- **ADBE 288/310C Sep-18 call debit vertical ×1, limit $7.59, max loss $759** — `client_order_id pr-38e18f9635fdfe0b`, thesis hash `80eabe8d8b71f5e4`
+- Waived: **G9 + G10 only** (edge thesis). **G1–G8 all passed** (fresh quotes, spreads 10–14% on both legs, budget, no market shock) — the safety floor cannot be waived in code.
+- Same machinery as an autonomous entry: fresh re-quote, conviction-5 sizing, mleg builder, persist-before-submit, preregistered thesis with invalidation (`spot beyond 295.1 OR vrp<0 OR dte<=1`), engine-managed exits afterwards.
+- Full trail in the journal: `OPERATOR_OVERRIDE` → `THESIS` → `ORDER_SUBMITTED`, mirrored to Supabase and the dashboard.
 
 ---
 
