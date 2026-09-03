@@ -40,6 +40,35 @@ def reconcile(
         journal.append("RECONCILE", {"error": str(exc), "note": "broker unreachable — fail closed, no entries this cycle"}, cycle_id)
         return
 
+    # --- second channel: official Alpaca CLI as an independent broker-truth
+    # read (fail-open — CLI absence/failure never blocks; REST stays source
+    # of truth; a count mismatch is journaled, never a halt, to avoid false
+    # kills from coverage differences between channels).
+    try:
+        from ..execution.alpaca_cli import (
+            available as cli_available, cli_account, cli_clock, cli_positions,
+        )
+        if cli_available():
+            c_acct = cli_account(settings)
+            c_pos = cli_positions(settings)
+            c_clock = cli_clock(settings)
+            journal.append("CLI_CHECK", {
+                "account_ok": bool(c_acct),
+                "equity": (c_acct or {}).get("equity"),
+                "buying_power": (c_acct or {}).get("buying_power"),
+                "positions": len(c_pos) if isinstance(c_pos, list) else None,
+                "market_open": (c_clock or {}).get("is_open"),
+            }, cycle_id)
+            if isinstance(c_pos, list) and len(c_pos) != len(positions):
+                journal.append("RECONCILE", {
+                    "note": "cli_rest_position_count_differs",
+                    "cli": len(c_pos), "rest": len(positions),
+                }, cycle_id)
+        else:
+            journal.append("CLI_CHECK", {"available": False, "note": "alpaca cli not installed; REST only"}, cycle_id)
+    except Exception as exc:
+        journal.append("CLI_CHECK", {"error": str(exc)[:200]}, cycle_id)
+
     # --- equity / day counters / drawdown
     broker_equity = None
     try:
@@ -48,6 +77,11 @@ def reconcile(
         md = AlpacaMarketData(settings)
         broker_equity = md.account().equity
         state.set_equity(today, broker_equity)
+        try:  # dashboard live feed (fail-open; never blocks trading)
+            from ..supabase import push_equity as _push_equity
+            _push_equity(today.isoformat(), broker_equity)
+        except Exception:
+            pass
         peak = state.peak_equity()
         if peak and (peak - broker_equity) / peak >= settings.risk.drawdown_halt:
             state.latch_halt(f"drawdown {(peak-broker_equity)/peak:.1%} >= {settings.risk.drawdown_halt:.0%}")

@@ -162,6 +162,7 @@ class AlpacaMarketData:
                 start=utcnow() - timedelta(days=lookback_days * 2 + 10),
                 end=utcnow() - timedelta(hours=12),  # skip today's partial bar
                 adjustment="split",
+                limit=10000,  # 2y of dailies must not be silently truncated
             ))
         except Exception as exc:
             raise MarketDataError(f"bars fetch failed for {symbol}: {exc}") from exc

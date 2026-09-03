@@ -123,6 +123,7 @@ uv run pr journal --verify
 ```
 pr status              # halt, journal chain, open positions, aggregate risk
 pr cycle               # run one 9-step cycle
+pr doctor              # paper guard, journal chain, Alpaca CLI account/positions
 pr journal [-n N]      # tail journal
 pr journal --verify    # hash-chain verify
 pr resume --confirm ACK# clear a latched HALT (manual only)
@@ -143,11 +144,13 @@ LLM providers are tried in order Groq → AIML → OpenAI-compatible custom endp
 
 No commits per run. The loop is **Cloudflare Worker → Actions → Supabase → Vercel**:
 
-- A Cloudflare Worker (`worker/`, cron `*/20 13-20 * * 1-5` weekdays) dispatches `.github/workflows/cycle.yml` (`workflow_dispatch` only) via the GitHub API. Every `Journal.append` is mirrored to Supabase (`src/printrunner/supabase/`, fail-open).
+- A Cloudflare Worker (`worker/`, cron `*/20 13-20 * * 1-5` weekdays) dispatches `.github/workflows/cycle.yml` via the GitHub API (plus a backup `schedule` trigger in the workflow itself; the concurrency group serializes overlaps and cycles are idempotent). State survives across fresh CI checkouts via a rolling `actions/cache` on `data/` (unique key per run, prefix restore) — without this the P5 two-observation calendar gate could never pass in production. The workflow also installs the official Alpaca CLI (`alpacahq/cli`) for the reconcile second channel. Every `Journal.append` is mirrored to Supabase (`src/printrunner/supabase/`, fail-open), as is the daily equity snapshot.
 - The dashboard (`src/printrunner/dashboard/build.py`) is a static shell that fetches `journal`/`equity` from Supabase **in the browser at runtime** — no rebuild or redeploy per run. Build locally with `uv run pr dashboard` (reads `SUPABASE_URL`/`SUPABASE_ANON_KEY` from `.env`), then publish with `vercel deploy` from `docs/`. `docs/index.html` is gitignored precisely because the built file carries the public anon key; **never `git add` it**.
 - Live: `https://printrunner.vercel.app/`
 
-Required Actions secrets: `ALPACA_API_KEY_ID`, `ALPACA_SECRET_KEY`, `ALPACA_BASE_URL` (paper), `FINNHUB_API_KEY`, `GROQ_API_KEY` (and optionally `AIML_API_KEY`, `OPENAI_COMPAT_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_ANON_KEY`, `DISCORD_WEBHOOK_URL`).
+Required Actions secrets: `ALPACA_API_KEY_ID`, `ALPACA_SECRET_KEY`, `ALPACA_BASE_URL` (paper), `FINNHUB_API_KEY`, `GROQ_API_KEY` (and optionally `AIML_API_KEY`, `OPENAI_COMPAT_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_ANON_KEY`, `DISCORD_WEBHOOK_URL`). No extra secrets for the CLI — the workflow maps the same paper key/secret to `ALPACA_API_KEY`/`ALPACA_SECRET_KEY`, and the wrapper strips `ALPACA_LIVE_TRADE` so the CLI stays on its paper default (P7).
+
+Alpaca infrastructure: Trading API via `alpaca-py`/REST (market data, chain, mleg orders) **plus** the official Alpaca CLI as an independent second channel — `reconcile()` cross-checks account/positions/clock through `src/printrunner/execution/alpaca_cli.py` (fail-open, journaled as `CLI_CHECK`, REST stays source of truth). `uv run pr doctor` probes the whole chain: paper guard, journal integrity, CLI account/positions.
 
 ---
 

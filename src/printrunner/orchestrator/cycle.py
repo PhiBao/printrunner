@@ -73,7 +73,10 @@ def _snapshot_for_event(
     except Exception:
         spy_spot, spy_quote, r1, r5 = 0, StockQuote(quoted_at=utcnow()), None, None
     try:
-        bars = md.daily_bars(event.symbol, lookback_days=60)
+        # Two years of dailies: quarterly earnings need ~8 past prints for the
+        # EM-vs-history sample (a 60d window can only ever overlap 1 quarter).
+        # Tail-only metrics (hv20, runup drift) are unaffected by extra history.
+        bars = md.daily_bars(event.symbol, lookback_days=360)
         closes = [b.close for b in bars]
         # hv20 handled in metrics via snapshot field or derived
         from ..screener.metrics import _annualized_hv

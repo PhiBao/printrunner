@@ -1,6 +1,10 @@
 name: printrunner-cycle
 on:
   workflow_dispatch:
+  # Backup schedule in case the Cloudflare Worker dispatch fails — the
+  # concurrency group serializes overlapping runs and cycles are idempotent.
+  schedule:
+    - cron: "7,27,47 13-20 * * 1-5"
 concurrency:
   group: printrunner-cycle
   cancel-in-progress: false
@@ -9,18 +13,38 @@ permissions:
 jobs:
   cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      # Rolling state: SQLite + journal restored from the previous run's cache
+      # so calendar confirm_cycles, halt latch, and day counters survive
+      # across CI runs (fresh checkouts start empty — without this the P5
+      # two-observation gate can never pass in production). Saved under a
+      # unique key per run; restored via prefix match to the latest save.
+      - name: Restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: data/
+          key: printrunner-state-${{ github.run_id }}
+          restore-keys: |
+            printrunner-state-
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.11"
       - run: uv sync
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install Alpaca CLI (official alpacahq/cli, paper default)
+        run: go install github.com/alpacahq/cli/cmd/alpaca@latest && echo "$HOME/go/bin" >> $GITHUB_PATH
       - name: Run cycle (Supabase, no git commit)
         env:
           ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
+          # Alpaca CLI auth (env bundle, paper default — ALPACA_LIVE_TRADE unset)
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           AIML_API_KEY: ${{ secrets.AIML_API_KEY }}
@@ -31,3 +55,9 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: uv run pr cycle
+      - name: Save state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/
+          key: printrunner-state-${{ github.run_id }}

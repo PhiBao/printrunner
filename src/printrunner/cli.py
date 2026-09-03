@@ -73,6 +73,37 @@ def cmd_dashboard(args) -> int:
     return 0
 
 
+def cmd_doctor(args) -> int:
+    """Environment self-check: paper guard, journal chain, Alpaca CLI channel."""
+    from .config import LiveEndpointError
+    try:
+        settings = Settings.load()
+        print(f"paper guard: ok ({settings.alpaca_base_url})")
+    except LiveEndpointError as exc:
+        print(f"paper guard: REFUSED ({exc})", file=sys.stderr)
+        return 2
+    state = StateDB(settings.db_path)
+    journal = Journal(settings.journal_path)
+    try:
+        journal.verify()
+        print(f"journal: ok entries={len(journal.all_entries())}")
+    except Exception as exc:
+        print(f"journal: BROKEN ({exc})", file=sys.stderr)
+    halt = state.halt()
+    print(f"halt: {halt.tripped} {halt.reason or ''}")
+    from .execution.alpaca_cli import probe
+    info = probe(settings)
+    if not info.get("available"):
+        print("alpaca cli: not installed (REST only)")
+        return 0
+    print(f"alpaca cli: account_ok={info.get('account_ok')} "
+          f"equity={info.get('equity')} positions={info.get('positions')} "
+          f"clock_is_open={info.get('clock_is_open', info.get('clock_open'))}")
+    if info.get("live_forced_off"):
+        print("alpaca cli: ALPACA_LIVE_TRADE was set — forced off (paper only)")
+    return 0 if info.get("account_ok") else 1
+
+
 def cmd_cycle(args) -> int:
     settings = Settings.load()
     from .orchestrator.cycle import run_cycle
@@ -95,7 +126,8 @@ def main() -> None:
     pr.add_argument("--confirm", default="")
     sub.add_parser("dashboard")
     sub.add_parser("cycle")
+    sub.add_parser("doctor")
     args = p.parse_args()
     code = {"status": cmd_status, "journal": cmd_journal, "resume": cmd_resume,
-            "dashboard": cmd_dashboard, "cycle": cmd_cycle}[args.cmd](args)
+            "dashboard": cmd_dashboard, "cycle": cmd_cycle, "doctor": cmd_doctor}[args.cmd](args)
     sys.exit(code)
